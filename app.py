@@ -62,7 +62,7 @@ def extract_custom_fields(custom_field_values):
 def expand_owner(owner):
     if owner is None:
         return dict.fromkeys(['owner_id', 'owner_personType', 'owner_profileType',
-                              'owner_businessName', 'owner_email', 'owner_phone', 'owner_pathPicture'], None)
+                               'owner_businessName', 'owner_email', 'owner_phone', 'owner_pathPicture'], None)
     return {
         'owner_id': owner.get('id'),
         'owner_personType': owner.get('personType'),
@@ -76,7 +76,7 @@ def expand_owner(owner):
 def expand_createdby(createdby):
     if createdby is None:
         return dict.fromkeys(['createdBy_id', 'createdBy_businessName', 'createdBy_email',
-                              'createdBy_phone', 'createdBy_profileType', 'createdBy_personType'], None)
+                               'createdBy_phone', 'createdBy_profileType', 'createdBy_personType'], None)
     return {
         'createdBy_id': createdby.get('id'),
         'createdBy_businessName': createdby.get('businessName'),
@@ -160,6 +160,9 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
         # Primeiro, converta 'createdDate' para o formato de data/hora. 'coerce' transforma erros em NaT (Not a Time).
         df_final['createdDate'] = pd.to_datetime(df_final['createdDate'], errors='coerce')
         
+        # Remove linhas onde a conversão de data resultou em NaT (Not a Time) para evitar erros
+        df_final.dropna(subset=['createdDate'], inplace=True)
+        
         # Define as datas de início e fim do filtro.
         start_date_filter = pd.to_datetime('2024-01-01')
         end_date_filter = pd.to_datetime('2024-12-31')
@@ -178,10 +181,68 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
         df_final['resolvedIn'] = pd.to_datetime(df_final['resolvedIn'], errors='coerce').dt.strftime('%d/%m/%Y %H:%M')
 
         # --- Mapeamento dos nomes das colunas customizadas ---
-        de_para_customField = { 
+        de_para_customField = {  
             'customField_177683': 'CON - ANO',  
             'customField_178151': 'CON - ID DE CUSTO',  
-            # ... (o resto do seu dicionário de mapeamento continua aqui) ...
+            'customField_177671': 'CON - MOTIVO DO TICKET',  
+            'customField_177678': 'CON - PLACA',  
+            'customField_178156': 'CON - PRIMEIRO CONTATO?',  
+            'customField_177801': 'CON - REGIÃO',  
+            'customField_177682': 'CON - TIPO DE VEICULO',  
+            'customField_177804': 'CON - UF',  
+            'customField_186813': 'CON - VALOR DO FRENTE NEGOCIADO?',  
+            'customField_178097': 'CON - VALOR MESA',  
+            'customField_177685': 'CON - VALOR NEGOCIADO',  
+            'customField_174358': 'CRC - Clientes',  
+            'customField_179575': 'CRC - E-mail',  
+            'customField_185839': 'CRC - Filial',  
+            'customField_175192': 'CRC - Motivo',  
+            'customField_175190': 'CRC - Origem',  
+            'customField_175170': 'CRC - Tipo',  
+            'customField_175125': 'DEV - Agente Auxiliar',  
+            'customField_175121': 'DEV - Classificação',  
+            'customField_175118': 'DEV - Lista de Agentes',  
+            'customField_177084': 'DEV - Observação',  
+            'customField_175123': 'DEV - Tipo de Chamado',  
+            'customField_177132': 'DEV -- Tipo de Chamado',  
+            'customField_189130': 'FAT - Armazém Filial',  
+            'customField_189129': 'FAT - Carregamento',  
+            'customField_189128': 'FAT - CNPJ cliente sacado',  
+            'customField_189139': 'FAT - Contrato cliente sacado',  
+            'customField_189133': 'FAT - Grupo cliente sacado',  
+            'customField_190227': 'FAT - Número do CT-e/RPS',  
+            'customField_189131': 'FAT - Rota emissão',  
+            'customField_189189': 'FAT - Status de finalização - Descrição',  
+            'customField_189188': 'FAT - Status de finalização - Motivo',  
+            'customField_189184': 'FAT - Status de finalização - Setor responsável pela divergência',  
+            'customField_190231': 'FAT - Usuário',  
+            'customField_188182': 'GPI - Data de Inicio',  
+            'customField_188183': 'GPI - Data Final',  
+            'customField_188179': 'GPI - Observação',  
+            'customField_188180': 'GPI - Responsável',  
+            'customField_188181': 'GPI - Status',  
+            'customField_174495': 'RDA - Agente Auxiliar',  
+            'customField_174494': 'RDA - Assunto',  
+            'customField_174501': 'RDA - Prazo',  
+            'customField_174493': 'RDA - Responsável',  
+            'customField_174489': 'RDA - Tipo de Chamado',  
+            'customField_187641': 'RDA - tipo de evento',  
+            'customField_178941': 'RDA - Tipo de evento',  
+            'customField_174488': 'RDA - Tipo de requisição',  
+            'customField_174487': 'RDA - Tipo de Serviço',  
+            'customField_189009': 'SAC - Categoria',  
+            'customField_189005': 'SAC - Observação',  
+            'customField_189008': 'SAC - Produto',  
+            'customField_189007': 'SAC - Tipo de Atendimento',  
+            'customField_189010': 'SAC - Tipo de Problema',  
+            'customField_174486': 'SAC - Tipo de Solução',  
+            'customField_174485': 'SAC - Tipo de Subproblema',  
+            'customField_174484': 'SAC - Tipo de Ticket',  
+            'customField_188495': 'SAC - Tipo de Ticket',  
+            'customField_177674': 'SIG - Agente Auxiliar',  
+            'customField_177675': 'SIG - Motivo',  
+            'customField_177676': 'SIG - Observação',  
+            'customField_177677': 'SIG - Responsável',  
             'customField_177673': 'SIG - Tipo de Ticket'  
         }
 
