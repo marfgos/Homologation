@@ -5,6 +5,7 @@ from office365.sharepoint.client_context import ClientContext
 from office365.runtime.auth.authentication_context import AuthenticationContext
 from datetime import datetime, timedelta
 import os
+from zoneinfo import ZoneInfo # Importar ZoneInfo
 
 # --- Configurações SharePoint ---
 sharepoint_folder = '/sites/DellaVolpe/Documentos%20Compartilhados/Planejamentos/Dados_PVD/'
@@ -51,7 +52,6 @@ def extract_custom_fields(custom_field_values):
         field_id = field.get('customFieldId')
         value = field.get('value', None)
 
-        # Verificação extra para evitar erro de 'NoneType'
         if not value and field.get('items') and isinstance(field['items'], list) and len(field['items']) > 0:
             item = field['items'][0]
             value = item.get('customFieldItem') if isinstance(item, dict) else None
@@ -62,7 +62,7 @@ def extract_custom_fields(custom_field_values):
 def expand_owner(owner):
     if owner is None:
         return dict.fromkeys(['owner_id', 'owner_personType', 'owner_profileType',
-                               'owner_businessName', 'owner_email', 'owner_phone', 'owner_pathPicture'], None)
+                              'owner_businessName', 'owner_email', 'owner_phone', 'owner_pathPicture'], None)
     return {
         'owner_id': owner.get('id'),
         'owner_personType': owner.get('personType'),
@@ -76,7 +76,7 @@ def expand_owner(owner):
 def expand_createdby(createdby):
     if createdby is None:
         return dict.fromkeys(['createdBy_id', 'createdBy_businessName', 'createdBy_email',
-                               'createdBy_phone', 'createdBy_profileType', 'createdBy_personType'], None)
+                              'createdBy_phone', 'createdBy_profileType', 'createdBy_personType'], None)
     return {
         'createdBy_id': createdby.get('id'),
         'createdBy_businessName': createdby.get('businessName'),
@@ -91,31 +91,33 @@ def get_first_action_description(actions):
         return actions[0].get('description', None)
     return None
 
-# --- Streamlit app ---
+---
+## Aplicativo de Coleta e Upload de Tickets Movidesk
+---
 
 st.title("📊 Coleta de Tickets Movidesk e Upload para SharePoint")
 
-# --- Seleção de data inicial ---
-data_inicial = st.date_input(
-    "Selecione a data inicial:",
-    value=datetime(2025, 4, 1).date(),
-    min_value=datetime(2025, 1, 1).date(),
-    max_value=datetime.now().date()
-)
+# --- Datas fixas para extração ---
+start_date_extraction = datetime(2024, 1, 1).date()
+end_date_extraction = datetime(2025, 1, 1).date() # A data final é 01/01/2025, então a extração irá até 31/12/2024
+
+st.info(f"Período de extração de dados fixo: **{start_date_extraction.strftime('%d/%m/%Y')}** a **{end_date_extraction.strftime('%d/%m/%Y')}**")
+
 
 if st.button("🚀 Iniciar a extração de dados e upload da base para atualização do indicador!"):
     # --- Captura o timestamp da execução ---
-    from zoneinfo import ZoneInfo
     execution_timestamp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime('%d/%m/%Y %H:%M:%S')
-    # --- Exibe o timestamp ao lado da barra de progresso ---
     st.info(f"🕒 Data/hora da execução: {execution_timestamp}")
 
     with st.spinner("Extraindo base..."):
 
-        # --- Intervalo de datas ---
-        start_date = datetime.combine(data_inicial, datetime.min.time())
-        end_date = datetime.now()
-        dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+        # --- Intervalo de datas para a API ---
+        # Convertendo as datas fixas para datetime para o loop
+        start_date_api = datetime.combine(start_date_extraction, datetime.min.time())
+        end_date_api = datetime.combine(end_date_extraction, datetime.min.time())
+
+        # Gerar a lista de datas para o loop de extração
+        dates = [start_date_api + timedelta(days=i) for i in range((end_date_api - start_date_api).days + 1)]
 
         all_data = []
         progress = st.progress(0)
@@ -149,32 +151,27 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
             createdBy_fields_df
         ], axis=1)
 
-        # --- INÍCIO DOS FILTROS ---
+        # --- INÍCIO DOS FILTROS (mantidos como estavam, pois são filtros adicionais ao período de extração) ---
 
         # 1. Filtro por 'serviceFull'
-        # Cria uma lista com os serviços que você quer manter.
         services_to_filter = ['Gestão de Processos - Implantação', 'Regra de Ouro']
         df_final = df_final[df_final['serviceFull'].isin(services_to_filter)]
 
-        # 2. Filtro por 'createdDate'
-        # Primeiro, converta 'createdDate' para o formato de data/hora. 'coerce' transforma erros em NaT (Not a Time).
+        # 2. Filtro por 'createdDate' - ESTE FILTRO SE TORNA REDUNDANTE SE A EXTRAÇÃO JÁ ESTIVER NO PERÍODO CORRETO
+        # MAS É MANTIDO PARA GARANTIR CONSISTÊNCIA CASO A LÓGICA DA API MUDE OU PARA OUTROS FINS.
         df_final['createdDate'] = pd.to_datetime(df_final['createdDate'], errors='coerce')
-        
-        # Remove linhas onde a conversão de data resultou em NaT (Not a Time) para evitar erros
         df_final.dropna(subset=['createdDate'], inplace=True)
         
-        # Define as datas de início e fim do filtro.
-        start_date_filter = pd.to_datetime('2024-01-01')
-        end_date_filter = pd.to_datetime('2024-12-31')
+        # As datas do filtro são as mesmas que você definiu para a extração, mas com horas zeradas para comparação
+        start_date_filter = pd.to_datetime('2024-01-01 00:00:00')
+        end_date_filter = pd.to_datetime('2025-01-01 00:00:00') # Inclui até o final do dia 31/12/2024
 
-        # Aplica o filtro para manter apenas as datas dentro do intervalo de 2024.
         df_final = df_final[
             (df_final['createdDate'] >= start_date_filter) & 
-            (df_final['createdDate'] <= end_date_filter)
+            (df_final['createdDate'] < end_date_filter) # Usamos '<' para garantir que 01/01/2025 não seja incluído
         ]
 
         # --- FIM DOS FILTROS ---
-
 
         # Formata as colunas de data para o formato brasileiro (dd/mm/yyyy HH:MM) antes de salvar.
         df_final['createdDate'] = df_final['createdDate'].dt.strftime('%d/%m/%Y %H:%M')
