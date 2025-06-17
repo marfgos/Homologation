@@ -95,13 +95,21 @@ def get_first_action_description(actions):
 
 st.title("📊 Coleta de Tickets Movidesk e Upload para SharePoint")
 
-# --- Seleção de data inicial ---
+# --- Seleção de data inicial e final ---
 data_inicial = st.date_input(
     "Selecione a data inicial:",
-    value=datetime(2025, 4, 1).date(),
-    min_value=datetime(2025, 1, 1).date(),
+    value=datetime(2024, 1, 1).date(), # Valor padrão para 2024
+    min_value=datetime(2023, 1, 1).date(), # Permite datas a partir de 2023
     max_value=datetime.now().date()
 )
+
+data_final = st.date_input(
+    "Selecione a data final:",
+    value=datetime.now().date(), # Valor padrão para a data atual
+    min_value=data_inicial, # Garante que a data final seja maior ou igual à inicial
+    max_value=datetime.now().date()
+)
+
 
 if st.button("🚀 Iniciar a extração de dados e upload da base para atualização do indicador!"):
     # --- Captura o timestamp da execução ---
@@ -111,10 +119,14 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
 
     with st.spinner("Extraindo base..."):
 
-        # --- Intervalo de datas ---
+        # --- Intervalo de datas ajustado para as seleções do usuário ---
+        # Certifica-se de que end_date inclui o dia inteiro selecionado pelo usuário
         start_date = datetime.combine(data_inicial, datetime.min.time())
-        end_date = datetime.now()
-        dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
+        end_date = datetime.combine(data_final, datetime.max.time())
+        
+        # Calcula o número de dias no intervalo, incluindo o dia final
+        num_days = (end_date.date() - start_date.date()).days + 1
+        dates = [start_date.date() + timedelta(days=i) for i in range(num_days)]
 
         all_data = []
         progress = st.progress(0)
@@ -230,14 +242,13 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
         # --- Adiciona a coluna de timestamp ---
         df_final['execution_timestamp'] = execution_timestamp
 
-        # --- Salvando arquivo temporário ---
-        csv = 'TicketsMovidesk.csv'
-        df_final.to_csv(csv, index=False)
-        st.success(f"✅ Arquivo **{csv}** salvo localmente com o filtro 'Gestão de Processos - Implantação' e 'Regra de Ouro' aplicado.")
+        # --- Salvando arquivo temporário com o novo nome ---
+        csv_file_name = 'BaseRegraDeOuro2024.csv' # Novo nome do arquivo
+        df_final.to_csv(csv_file_name, index=False)
+        st.success(f"✅ Arquivo **{csv_file_name}** salvo localmente com o filtro 'Gestão de Processos - Implantação' e 'Regra de Ouro' aplicado.")
 
         # --- Upload para SharePoint ---
-        # AQUI É ONDE O UPLOAD DEVE ESTAR!
-        uploadSharePoint(csv, sharepoint_folder) 
+        uploadSharePoint(csv_file_name, sharepoint_folder) 
 
         # --- Mostra um trecho da tabela filtrada ---
         st.subheader("Prévia da Tabela Filtrada (Primeiras 5 Linhas):")
