@@ -1,10 +1,3 @@
-eu tenho esse código em phyton que eu rodo no streamlit deploy, eu quero fazer alguns filtros nele de:
-
-somente dados maiores que 01/01/2024 e menores que 31/12/2024 com base na coluna 'createdDate'
-somente dados cujo 'serviceFull' seja igual a Gestão de Processos - Implantação, Regra de Ouro
-
-segue meu código:
-
 import streamlit as st
 import requests
 import pandas as pd
