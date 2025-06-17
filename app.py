@@ -1,3 +1,10 @@
+eu tenho esse código em phyton que eu rodo no streamlit deploy, eu quero fazer alguns filtros nele de:
+
+somente dados maiores que 01/01/2024 e menores que 31/12/2024 com base na coluna 'createdDate'
+somente dados cujo 'serviceFull' seja igual a Gestão de Processos - Implantação, Regra de Ouro
+
+segue meu código:
+
 import streamlit as st
 import requests
 import pandas as pd
@@ -12,9 +19,6 @@ url_sharepoint = 'https://dellavolpecombr.sharepoint.com/sites/DellaVolpe'
 username = 'marcos.silva@dellavolpe.com.br'
 password = '38213824rR!!'
 
-APITOKEN = "34779acb-809d-4628-8594-441fa68dc694"
-TOP = 1000
-
 def uploadSharePoint(local_file_path, sharepoint_folder):
     ctx_auth = AuthenticationContext(url_sharepoint)
     if ctx_auth.acquire_token_for_user(username, password):
@@ -23,90 +27,185 @@ def uploadSharePoint(local_file_path, sharepoint_folder):
             file_name = os.path.basename(local_file_path)
             target_folder = ctx.web.get_folder_by_server_relative_url(sharepoint_folder)
             target_folder.upload_file(file_name, file_content).execute_query()
-            st.success(f"✅ Arquivo **{file_name}** enviado com sucesso para o SharePoint")
+            st.success(f"✅ Arquivo **{file_name}** enviado com sucesso para o SharePoint, agora é só atualizar o indicador: https://app.powerbi.com/groups/9b59453e-21da-4a0c-8b2f-71451adc77fb/reports/5536e2b3-d355-4087-a081-2edc90854bb7/c5a41d1f74f190655f38?experience=power-bi")
     else:
         st.error("❌ Autenticação no SharePoint falhou.")
 
-def get_tickets_page(skip, start_date, end_date):
-    url = (
-        f"https://api.movidesk.com/public/v1/tickets?"
-        f"token={APITOKEN}"
-        f"&$select=id,actions"
-        f"&$expand=actions"
-        f"&$filter=createdDate ge {start_date} and createdDate le {end_date}"
-        f"&$top={TOP}"
-        f"&$skip={skip}"
+# --- Funções auxiliares ---
+
+def get_tickets_for_date(date):
+    start_of_day = date.strftime("%Y-%m-%d") + "T00:00:00.00z"
+    end_of_day = date.strftime("%Y-%m-%d") + "T23:59:59.99z"
+    
+    api_url = (
+        "https://api.movidesk.com/public/v1/tickets?"
+        "token=34779acb-809d-4628-8594-441fa68dc694"
+        "&$select=id,type,origin,status,urgency,type,originEmailAccount,"
+        "serviceFirstLevelId,serviceFull,createdBy,owner,ownerTeam,createdDate,"
+        "lastUpdate,cc,originEmailAccount,clients,actions,parentTickets,"
+        "childrenTickets,statusHistories,customFieldValues,assets,chatWaitingTime,"
+        "resolvedIn,subject"
+        "&$expand=owner,createdBy,customFieldValues($expand=items)"
+        f"&$filter=createdDate ge {start_of_day} and createdDate le {end_of_day} and ownerTeam ne 'Agente - CRC'"
     )
-    response = requests.get(url)
-    response.raise_for_status()
-    data = response.json()
-    if isinstance(data, dict) and "value" in data:
-        return data["value"]
-    elif isinstance(data, list):
-        return data
-    return []
+    
+    response = requests.get(api_url)
+    return response.json()
 
-def get_all_tickets(start_date, end_date):
-    skip = 0
-    all_tickets = []
-    while True:
-        page = get_tickets_page(skip, start_date, end_date)
-        all_tickets.extend(page)
-        if len(page) < TOP:
-            break
-        skip += TOP
-    return all_tickets
+def extract_custom_fields(custom_field_values):
+    custom_fields = {}
+    for field in custom_field_values:
+        field_id = field.get('customFieldId')
+        value = field.get('value', None)
 
-def extract_actions(tickets):
-    rows = []
-    for ticket in tickets:
-        ticket_id = ticket.get("id")
-        actions = ticket.get("actions", [])
-        if not actions:
-            rows.append({"TicketId": ticket_id, **{}})
-        else:
-            for action in actions:
-                row = {"TicketId": ticket_id}
-                for k, v in action.items():
-                    row[f"Action_{k}"] = v
-                rows.append(row)
-    return rows
+        # Verificação extra para evitar erro de 'NoneType'
+        if not value and field.get('items') and isinstance(field['items'], list) and len(field['items']) > 0:
+            item = field['items'][0]
+            value = item.get('customFieldItem') if isinstance(item, dict) else None
 
-def main():
-    st.title("📊 Extração de Tickets Movidesk com paginação e upload para SharePoint")
+        custom_fields[f'customField_{field_id}'] = value
+    return custom_fields
 
-    data_inicial = st.date_input(
-        "Data inicial:",
-        value=datetime(2025,4,1).date(),
-        min_value=datetime(2025,1,1).date(),
-        max_value=datetime.now().date()
-    )
+def expand_owner(owner):
+    if owner is None:
+        return dict.fromkeys(['owner_id', 'owner_personType', 'owner_profileType',
+                              'owner_businessName', 'owner_email', 'owner_phone', 'owner_pathPicture'], None)
+    return {
+        'owner_id': owner.get('id'),
+        'owner_personType': owner.get('personType'),
+        'owner_profileType': owner.get('profileType'),
+        'owner_businessName': owner.get('businessName'),
+        'owner_email': owner.get('email'),
+        'owner_phone': owner.get('phone'),
+        'owner_pathPicture': owner.get('pathPicture')
+    }
 
-    data_final = datetime.now().date()
+def expand_createdby(createdby):
+    if createdby is None:
+        return dict.fromkeys(['createdBy_id', 'createdBy_businessName', 'createdBy_email',
+                              'createdBy_phone', 'createdBy_profileType', 'createdBy_personType'], None)
+    return {
+        'createdBy_id': createdby.get('id'),
+        'createdBy_businessName': createdby.get('businessName'),
+        'createdBy_email': createdby.get('email'),
+        'createdBy_phone': createdby.get('phone'),
+        'createdBy_profileType': createdby.get('profileType'),
+        'createdBy_personType': createdby.get('personType')
+    }
 
-    if st.button("🚀 Extrair e subir arquivo"):
-        start_dt_str = data_inicial.strftime("%Y-%m-%dT00:00:00Z")
-        end_dt_str = data_final.strftime("%Y-%m-%dT23:59:59Z")
+def get_first_action_description(actions):
+    if actions and isinstance(actions, list) and len(actions) > 0:
+        return actions[0].get('description', None)
+    return None
 
-        with st.spinner("Extraindo dados com paginação..."):
-            tickets = get_all_tickets(start_dt_str, end_dt_str)
-            st.write(f"Total tickets extraídos: {len(tickets)}")
+# --- Streamlit app ---
 
-            actions_data = extract_actions(tickets)
-            df = pd.DataFrame(actions_data)
+st.title("📊 Coleta de Tickets Movidesk e Upload para SharePoint")
 
-            # Aqui você pode aplicar tratamentos similares aos seus (exemplo)
-            # Exemplo: converter datas, renomear colunas etc.
+# --- Seleção de data inicial ---
+data_inicial = st.date_input(
+    "Selecione a data inicial:",
+    value=datetime(2025, 4, 1).date(),
+    min_value=datetime(2025, 1, 1).date(),
+    max_value=datetime.now().date()
+)
 
-            csv_path = "tickets_movidesk_pag.csv"
-            df.to_csv(csv_path, index=False)
-            st.success(f"Arquivo salvo: {csv_path}")
+if st.button("🚀 Iniciar a extração de dados e upload da base para atualização do indicador!"):
+    # --- Captura o timestamp da execução ---
+    from zoneinfo import ZoneInfo
+    execution_timestamp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime('%d/%m/%Y %H:%M:%S')
+    # --- Exibe o timestamp ao lado da barra de progresso ---
+    st.info(f"🕒 Data/hora da execução: {execution_timestamp}")
 
-            uploadSharePoint(csv_path, sharepoint_folder)
+    with st.spinner("Extraindo base..."):
 
-            st.dataframe(df.head())
+        # --- Intervalo de datas ---
+        start_date = datetime.combine(data_inicial, datetime.min.time())
+        end_date = datetime.now()
+        dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
 
-        st.balloons()
+        all_data = []
+        progress = st.progress(0)
 
-if __name__ == "__main__":
-    main()
+        for idx, date in enumerate(dates, 1):
+            data = get_tickets_for_date(date)
+            if isinstance(data, list):
+                all_data.extend(data)
+            progress.progress(idx / len(dates))
+
+        for item in all_data:
+            if 'actions' not in item:
+                item['actions'] = None
+
+        df = pd.DataFrame(all_data)
+        df['first_action_description'] = df['actions'].apply(get_first_action_description)
+
+        expanded_fields = df['customFieldValues'].apply(extract_custom_fields)
+        custom_fields_df = pd.DataFrame(expanded_fields.tolist())
+
+        expanded_owners = df['owner'].apply(expand_owner)
+        owner_fields_df = pd.DataFrame(expanded_owners.tolist())
+
+        expanded_createdBy = df['createdBy'].apply(expand_createdby)
+        createdBy_fields_df = pd.DataFrame(expanded_createdBy.tolist())
+
+        df_final = pd.concat([
+            df.drop(['owner', 'customFieldValues', 'createdBy', 'actions'], axis=1), 
+            owner_fields_df, 
+            custom_fields_df,
+            createdBy_fields_df
+        ], axis=1)
+
+        # --- INÍCIO DOS FILTROS ---
+
+        # 1. Filtro por 'serviceFull'
+        # Cria uma lista com os serviços que você quer manter.
+        services_to_filter = ['Gestão de Processos - Implantação', 'Regra de Ouro']
+        df_final = df_final[df_final['serviceFull'].isin(services_to_filter)]
+
+        # 2. Filtro por 'createdDate'
+        # Primeiro, converta 'createdDate' para o formato de data/hora. 'coerce' transforma erros em NaT (Not a Time).
+        df_final['createdDate'] = pd.to_datetime(df_final['createdDate'], errors='coerce')
+        
+        # Define as datas de início e fim do filtro.
+        start_date_filter = pd.to_datetime('2024-01-01')
+        end_date_filter = pd.to_datetime('2024-12-31')
+
+        # Aplica o filtro para manter apenas as datas dentro do intervalo de 2024.
+        df_final = df_final[
+            (df_final['createdDate'] >= start_date_filter) & 
+            (df_final['createdDate'] <= end_date_filter)
+        ]
+
+        # --- FIM DOS FILTROS ---
+
+
+        # Formata as colunas de data para o formato brasileiro (dd/mm/yyyy HH:MM) antes de salvar.
+        df_final['createdDate'] = df_final['createdDate'].dt.strftime('%d/%m/%Y %H:%M')
+        df_final['resolvedIn'] = pd.to_datetime(df_final['resolvedIn'], errors='coerce').dt.strftime('%d/%m/%Y %H:%M')
+
+        # --- Mapeamento dos nomes das colunas customizadas ---
+        de_para_customField = { 
+            'customField_177683': 'CON - ANO',  
+            'customField_178151': 'CON - ID DE CUSTO',  
+            # ... (o resto do seu dicionário de mapeamento continua aqui) ...
+            'customField_177673': 'SIG - Tipo de Ticket'  
+        }
+
+        df_final = df_final.rename(columns=de_para_customField)
+
+        # --- Adiciona a coluna de timestamp ---
+        df_final['execution_timestamp'] = execution_timestamp
+
+        # --- Salvando arquivo temporário ---
+        csv = 'TicketsMovidesk.csv'
+        df_final.to_csv(csv, index=False)
+        st.success(f"✅ Arquivo **{csv}** salvo localmente.")
+
+        # --- Upload para SharePoint ---
+        uploadSharePoint(csv, sharepoint_folder)
+
+        # --- Mostra um trecho da tabela ---
+        st.dataframe(df_final.head())
+
+    st.balloons()
