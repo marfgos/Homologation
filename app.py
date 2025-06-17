@@ -5,7 +5,7 @@ from office365.sharepoint.client_context import ClientContext
 from office365.runtime.auth.authentication_context import AuthenticationContext
 from datetime import datetime, timedelta
 import os
-from zoneinfo import ZoneInfo # Importar ZoneInfo
+from zoneinfo import ZoneInfo
 
 # --- Configurações SharePoint ---
 sharepoint_folder = '/sites/DellaVolpe/Documentos%20Compartilhados/Planejamentos/Dados_PVD/'
@@ -91,9 +91,11 @@ def get_first_action_description(actions):
         return actions[0].get('description', None)
     return None
 
----
-## Aplicativo de Coleta e Upload de Tickets Movidesk
----
+# Use st.markdown() for visual headings/separators in Streamlit
+st.markdown("---") # This will create a horizontal line in your app
+st.markdown("## Aplicativo de Coleta e Upload de Tickets Movidesk") # This will be a heading in your app
+st.markdown("---") # This will create another horizontal line in your app
+
 
 st.title("📊 Coleta de Tickets Movidesk e Upload para SharePoint")
 
