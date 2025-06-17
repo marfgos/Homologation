@@ -220,7 +220,7 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
         df_final = df_final.rename(columns=de_para_customField)
 
         # --- Aplica o filtro desejado para 'serviceFull' ---
-        df_final = df_final[df_final['serviceFull'] == 'Gestão de Processos - Implantação, Regra de Ouro']
+        df_final = df_final[df_final['serviceFull'] == '['Gestão de Processos - Implantação', 'Regra de Ouro']']
         
         # --- Adiciona a coluna de timestamp ---
         df_final['execution_timestamp'] = execution_timestamp
