@@ -219,19 +219,25 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
 
         df_final = df_final.rename(columns=de_para_customField)
 
-        # --- Aplica o filtro desejado para 'serviceFull' ---
-        df_final = df_final[df_final['serviceFull'] == '['Gestão de Processos - Implantação', 'Regra de Ouro']']
+        # --- Filtro para 'serviceFull' com comparação exata de lista ---
+        # Define a lista exata que esperamos encontrar no campo 'serviceFull'
+        lista_esperada_serviceFull = ['Gestão de Processos - Implantação', 'Regra de Ouro']
+
+        # Filtra o DataFrame para incluir apenas as linhas onde 'serviceFull'
+        # é exatamente igual à lista esperada.
+        df_final = df_final[
+            df_final['serviceFull'].apply(
+                lambda x: isinstance(x, list) and x == lista_esperada_serviceFull
+            )
+        ]
         
         # --- Adiciona a coluna de timestamp ---
         df_final['execution_timestamp'] = execution_timestamp
 
         # --- Salvando arquivo temporário ---
-        csv = 'BaseRegraDeOuro2024.csv'
+        csv = 'TicketsMovidesk.csv'
         df_final.to_csv(csv, index=False)
-        st.success(f"✅ Arquivo **{csv}** salvo localmente com o filtro 'Gestão de Processos - Implantação, Regra de Ouro' aplicado.")
-
-        # --- Upload para SharePoint ---
-        uploadSharePoint(csv, sharepoint_folder)
+        st.success(f"✅ Arquivo **{csv}** salvo localmente com o filtro 'Gestão de Processos - Implantação' e 'Regra de Ouro' aplicado.")
 
         # --- Mostra um trecho da tabela filtrada ---
         st.subheader("Prévia da Tabela Filtrada (Primeiras 5 Linhas):")
