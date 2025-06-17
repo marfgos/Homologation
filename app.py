@@ -101,7 +101,7 @@ st.title("📊 Coleta de Tickets Movidesk e Upload para SharePoint")
 
 # --- Datas fixas para extração ---
 start_date_extraction = datetime(2024, 1, 1).date()
-end_date_extraction = datetime(2025, 1, 1).date() # A data final é 01/01/2025, então a extração irá até 31/12/2024
+end_date_extraction = datetime(2024, 1, 3).date() # A data final é 01/01/2025, então a extração irá até 31/12/2024
 
 st.info(f"Período de extração de dados fixo: **{start_date_extraction.strftime('%d/%m/%Y')}** a **{end_date_extraction.strftime('%d/%m/%Y')}**")
 
@@ -156,7 +156,7 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
         # --- INÍCIO DOS FILTROS (mantidos como estavam, pois são filtros adicionais ao período de extração) ---
 
         # 1. Filtro por 'serviceFull'
-        services_to_filter = ['Gestão de Processos - Implantação', 'Regra de Ouro']
+        services_to_filter = ['Gestão de Processos - Implantação, Regra de Ouro']
         df_final = df_final[df_final['serviceFull'].isin(services_to_filter)]
 
         # 2. Filtro por 'createdDate' - ESTE FILTRO SE TORNA REDUNDANTE SE A EXTRAÇÃO JÁ ESTIVER NO PERÍODO CORRETO
