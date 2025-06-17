@@ -220,11 +220,7 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
         df_final = df_final.rename(columns=de_para_customField)
 
         # --- Filtro para 'serviceFull' com comparação exata de lista ---
-        # Define a lista exata que esperamos encontrar no campo 'serviceFull'
         lista_esperada_serviceFull = ['Gestão de Processos - Implantação', 'Regra de Ouro']
-
-        # Filtra o DataFrame para incluir apenas as linhas onde 'serviceFull'
-        # é exatamente igual à lista esperada.
         df_final = df_final[
             df_final['serviceFull'].apply(
                 lambda x: isinstance(x, list) and x == lista_esperada_serviceFull
@@ -238,6 +234,10 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
         csv = 'TicketsMovidesk.csv'
         df_final.to_csv(csv, index=False)
         st.success(f"✅ Arquivo **{csv}** salvo localmente com o filtro 'Gestão de Processos - Implantação' e 'Regra de Ouro' aplicado.")
+
+        # --- Upload para SharePoint ---
+        # AQUI É ONDE O UPLOAD DEVE ESTAR!
+        uploadSharePoint(csv, sharepoint_folder) 
 
         # --- Mostra um trecho da tabela filtrada ---
         st.subheader("Prévia da Tabela Filtrada (Primeiras 5 Linhas):")
