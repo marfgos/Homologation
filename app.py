@@ -40,7 +40,7 @@ def get_tickets_for_date(date):
         "childrenTickets,statusHistories,customFieldValues,assets,chatWaitingTime,"
         "resolvedIn,subject"
         "&$expand=owner,createdBy,customFieldValues($expand=items)"
-        f"&$filter=createdDate ge {start_of_day} and createdDate le {end_of_day} and ownerTeam ne 'Agente - CRC'"
+        f"&$filter=createdDate ge {start_of_day} and createdDate le {end_of_day}"
     )
     
     response = requests.get(api_url)
@@ -62,7 +62,7 @@ def extract_custom_fields(custom_field_values):
 def expand_owner(owner):
     if owner is None:
         return dict.fromkeys(['owner_id', 'owner_personType', 'owner_profileType',
-                               'owner_businessName', 'owner_email', 'owner_phone', 'owner_pathPicture'], None)
+                              'owner_businessName', 'owner_email', 'owner_phone', 'owner_pathPicture'], None)
     return {
         'owner_id': owner.get('id'),
         'owner_personType': owner.get('personType'),
@@ -76,7 +76,7 @@ def expand_owner(owner):
 def expand_createdby(createdby):
     if createdby is None:
         return dict.fromkeys(['createdBy_id', 'createdBy_businessName', 'createdBy_email',
-                               'createdBy_phone', 'createdBy_profileType', 'createdBy_personType'], None)
+                              'createdBy_phone', 'createdBy_profileType', 'createdBy_personType'], None)
     return {
         'createdBy_id': createdby.get('id'),
         'createdBy_businessName': createdby.get('businessName'),
@@ -91,35 +91,30 @@ def get_first_action_description(actions):
         return actions[0].get('description', None)
     return None
 
-# Use st.markdown() for visual headings/separators in Streamlit
-st.markdown("---") # This will create a horizontal line in your app
-st.markdown("## Aplicativo de Coleta e Upload de Tickets Movidesk") # This will be a heading in your app
-st.markdown("---") # This will create another horizontal line in your app
-
+# --- Streamlit app ---
 
 st.title("📊 Coleta de Tickets Movidesk e Upload para SharePoint")
 
-# --- Datas fixas para extração ---
-start_date_extraction = datetime(2024, 1, 1).date()
-end_date_extraction = datetime(2024, 1, 3).date() # A data final é 01/01/2025, então a extração irá até 31/12/2024
-
-st.info(f"Período de extração de dados fixo: **{start_date_extraction.strftime('%d/%m/%Y')}** a **{end_date_extraction.strftime('%d/%m/%Y')}**")
-
+# --- Seleção de data inicial ---
+data_inicial = st.date_input(
+    "Selecione a data inicial:",
+    value=datetime(2025, 4, 1).date(),
+    min_value=datetime(2025, 1, 1).date(),
+    max_value=datetime.now().date()
+)
 
 if st.button("🚀 Iniciar a extração de dados e upload da base para atualização do indicador!"):
     # --- Captura o timestamp da execução ---
     execution_timestamp = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime('%d/%m/%Y %H:%M:%S')
+    # --- Exibe o timestamp ao lado da barra de progresso ---
     st.info(f"🕒 Data/hora da execução: {execution_timestamp}")
 
     with st.spinner("Extraindo base..."):
 
-        # --- Intervalo de datas para a API ---
-        # Convertendo as datas fixas para datetime para o loop
-        start_date_api = datetime.combine(start_date_extraction, datetime.min.time())
-        end_date_api = datetime.combine(end_date_extraction, datetime.min.time())
-
-        # Gerar a lista de datas para o loop de extração
-        dates = [start_date_api + timedelta(days=i) for i in range((end_date_api - start_date_api).days + 1)]
+        # --- Intervalo de datas ---
+        start_date = datetime.combine(data_inicial, datetime.min.time())
+        end_date = datetime.now()
+        dates = [start_date + timedelta(days=i) for i in range((end_date - start_date).days + 1)]
 
         all_data = []
         progress = st.progress(0)
@@ -127,17 +122,12 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
         for idx, date in enumerate(dates, 1):
             data = get_tickets_for_date(date)
             if isinstance(data, list):
-                # Ensure 'actions' key exists for each item before extending
-                for item in data:
-                    if 'actions' not in item:
-                        item['actions'] = None
                 all_data.extend(data)
             progress.progress(idx / len(dates))
 
-        # The loop below is no longer strictly necessary if the check is done before extending
-        # for item in all_data:
-        #     if 'actions' not in item:
-        #         item['actions'] = None
+        for item in all_data:
+            if 'actions' not in item:
+                item['actions'] = None
 
         df = pd.DataFrame(all_data)
         df['first_action_description'] = df['actions'].apply(get_first_action_description)
@@ -158,30 +148,7 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
             createdBy_fields_df
         ], axis=1)
 
-        # --- INÍCIO DOS FILTROS (mantidos como estavam, pois são filtros adicionais ao período de extração) ---
-
-        # 1. Filtro por 'serviceFull'
-        services_to_filter = ['Gestão de Processos - Implantação, Regra de Ouro']
-        df_final = df_final[df_final['serviceFull'].isin(services_to_filter)]
-
-        # 2. Filtro por 'createdDate' - ESTE FILTRO SE TORNA REDUNDANTE SE A EXTRAÇÃO JÁ ESTIVER NO PERÍODO CORRETO
-        # MAS É MANTIDO PARA GARANTIR CONSISTÊNCIA CASO A LÓGICA DA API MUDE OU PARA OUTROS FINS.
-        df_final['createdDate'] = pd.to_datetime(df_final['createdDate'], errors='coerce')
-        df_final.dropna(subset=['createdDate'], inplace=True)
-        
-        # As datas do filtro são as mesmas que você definiu para a extração, mas com horas zeradas para comparação
-        start_date_filter = pd.to_datetime('2024-01-01 00:00:00')
-        end_date_filter = pd.to_datetime('2025-01-01 00:00:00') # Inclui até o final do dia 31/12/2024
-
-        df_final = df_final[
-            (df_final['createdDate'] >= start_date_filter) & 
-            (df_final['createdDate'] < end_date_filter) # Usamos '<' para garantir que 01/01/2025 não seja incluído
-        ]
-
-        # --- FIM DOS FILTROS ---
-
-        # Formata as colunas de data para o formato brasileiro (dd/mm/yyyy HH:MM) antes de salvar.
-        df_final['createdDate'] = df_final['createdDate'].dt.strftime('%d/%m/%Y %H:%M')
+        df_final['createdDate'] = pd.to_datetime(df_final['createdDate'], errors='coerce').dt.strftime('%d/%m/%Y %H:%M')
         df_final['resolvedIn'] = pd.to_datetime(df_final['resolvedIn'], errors='coerce').dt.strftime('%d/%m/%Y %H:%M')
 
         # --- Mapeamento dos nomes das colunas customizadas ---
@@ -252,18 +219,23 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
 
         df_final = df_final.rename(columns=de_para_customField)
 
+        # --- Aplica o filtro desejado para 'serviceFull' ---
+        df_final = df_final[df_final['serviceFull'] == 'Gestão de Processos - Implantação, Regra de Ouro']
+        
         # --- Adiciona a coluna de timestamp ---
         df_final['execution_timestamp'] = execution_timestamp
 
         # --- Salvando arquivo temporário ---
-        csv = 'BaseRegradeOuro2024.csv'
+        csv = 'BaseRegraDeOuro2024.csv'
         df_final.to_csv(csv, index=False)
-        st.success(f"✅ Arquivo **{csv}** salvo localmente.")
+        st.success(f"✅ Arquivo **{csv}** salvo localmente com o filtro 'Gestão de Processos - Implantação, Regra de Ouro' aplicado.")
 
         # --- Upload para SharePoint ---
         uploadSharePoint(csv, sharepoint_folder)
 
-        # --- Mostra um trecho da tabela ---
+        # --- Mostra um trecho da tabela filtrada ---
+        st.subheader("Prévia da Tabela Filtrada (Primeiras 5 Linhas):")
         st.dataframe(df_final.head())
+        st.info(f"Total de linhas na base filtrada: **{len(df_final)}**")
 
     st.balloons()
