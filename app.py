@@ -62,7 +62,7 @@ def extract_custom_fields(custom_field_values):
 def expand_owner(owner):
     if owner is None:
         return dict.fromkeys(['owner_id', 'owner_personType', 'owner_profileType',
-                              'owner_businessName', 'owner_email', 'owner_phone', 'owner_pathPicture'], None)
+                               'owner_businessName', 'owner_email', 'owner_phone', 'owner_pathPicture'], None)
     return {
         'owner_id': owner.get('id'),
         'owner_personType': owner.get('personType'),
@@ -76,7 +76,7 @@ def expand_owner(owner):
 def expand_createdby(createdby):
     if createdby is None:
         return dict.fromkeys(['createdBy_id', 'createdBy_businessName', 'createdBy_email',
-                              'createdBy_phone', 'createdBy_profileType', 'createdBy_personType'], None)
+                               'createdBy_phone', 'createdBy_profileType', 'createdBy_personType'], None)
     return {
         'createdBy_id': createdby.get('id'),
         'createdBy_businessName': createdby.get('businessName'),
@@ -127,12 +127,17 @@ if st.button("🚀 Iniciar a extração de dados e upload da base para atualiza�
         for idx, date in enumerate(dates, 1):
             data = get_tickets_for_date(date)
             if isinstance(data, list):
+                # Ensure 'actions' key exists for each item before extending
+                for item in data:
+                    if 'actions' not in item:
+                        item['actions'] = None
                 all_data.extend(data)
             progress.progress(idx / len(dates))
 
-        for item in all_data:
-            if 'actions' not in item:
-                item['actions'] = None
+        # The loop below is no longer strictly necessary if the check is done before extending
+        # for item in all_data:
+        #     if 'actions' not in item:
+        #         item['actions'] = None
 
         df = pd.DataFrame(all_data)
         df['first_action_description'] = df['actions'].apply(get_first_action_description)
