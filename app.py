@@ -101,7 +101,7 @@ st.title("📊 Coleta de Tickets Movidesk e Upload para SharePoint")
 
 # --- Datas fixas para extração ---
 start_date_extraction = datetime(2024, 1, 1).date()
-end_date_extraction = datetime(2024, 1, 3).date() # A data final é 01/01/2025, então a extração irá até 31/12/2024
+end_date_extraction = datetime(2025, 1, 3).date() # A data final é 01/01/2025, então a extração irá até 31/12/2024
 
 st.info(f"Período de extração de dados fixo: **{start_date_extraction.strftime('%d/%m/%Y')}** a **{end_date_extraction.strftime('%d/%m/%Y')}**")
 
